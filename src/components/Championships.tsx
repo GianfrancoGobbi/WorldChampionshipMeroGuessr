@@ -163,48 +163,7 @@ const Championships: React.FC<ChampionshipsProps> = ({ session, onBack, onPlayMa
 
             {view === 'list' && (
                 <div>
-                    {/* My Pending Matches */}
-                    <div className="mb-8">
-                        <h2 className="text-2xl font-bold mb-4 text-blue-400">My Pending Matches</h2>
-                        {matches.filter(
-                            m => (m.player1_id === session.user.id || m.player2_id === session.user.id) && m.status === 'pending'
-                        ).length === 0 ? (
-                            <p className="text-gray-400">No pending matches.</p>
-                        ) : (
-                            <div className="grid gap-4">
-                                {matches
-                                    .filter(
-                                        m => (m.player1_id === session.user.id || m.player2_id === session.user.id) && m.status === 'pending'
-                                    )
-                                    .sort((a, b) => (a.round_number || 0) - (b.round_number || 0))
-                                    .map(m => (
-                                        <div key={m.id} className="bg-gray-800 p-6 rounded border border-blue-900/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                                            <div className="flex-1">
-                                                <p className="text-sm text-gray-400 mb-1">Round {m.round_number} of 6</p>
-                                                <p className="font-bold text-lg">
-                                                    {m.player1_email} vs {m.player2_email}
-                                                </p>
-                                                <p className="text-sm text-gray-400 mt-1">
-                                                    {m.player1_score !== null && m.player2_score !== null ? (
-                                                        `Score: ${m.player1_score} - ${m.player2_score}`
-                                                    ) : (
-                                                        'Match not started'
-                                                    )}
-                                                </p>
-                                            </div>
-                                            {(m.player1_id === session.user.id || m.player2_id === session.user.id) && (
-                                                <button
-                                                    onClick={() => onPlayMatch(m.id)}
-                                                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded transition-colors w-full md:w-auto"
-                                                >
-                                                    Play Match
-                                                </button>
-                                            )}
-                                        </div>
-                                    ))}
-                            </div>
-                        )}
-                    </div>
+
 
                     {/* All Championships */}
                     <h2 className="text-2xl font-bold mb-4">All Championships</h2>
@@ -318,6 +277,7 @@ const Championships: React.FC<ChampionshipsProps> = ({ session, onBack, onPlayMa
                                         <tr className="text-gray-400 text-sm">
                                             <th className="p-2">Player</th>
                                             <th className="p-2">Pts</th>
+                                            <th className="p-2">RW</th>
                                             <th className="p-2">MP</th>
                                             <th className="p-2">W</th>
                                             <th className="p-2">D</th>
@@ -327,19 +287,28 @@ const Championships: React.FC<ChampionshipsProps> = ({ session, onBack, onPlayMa
                                     <tbody>
                                         {participants
                                             .sort((a, b) => b.points - a.points)
-                                            .map((p, idx) => (
-                                                <tr
-                                                    key={p.id}
-                                                    className={`border-b border-gray-700 ${idx % 2 === 0 ? 'bg-gray-800' : 'bg-gray-800/50'}`}
-                                                >
-                                                    <td className="p-2 font-medium">{p.email}</td>
-                                                    <td className="p-2 font-bold text-yellow-400">{p.points}</td>
-                                                    <td className="p-2">{p.matches_played}</td>
-                                                    <td className="p-2 text-green-400">{p.wins}</td>
-                                                    <td className="p-2 text-gray-400">{p.draws}</td>
-                                                    <td className="p-2 text-red-400">{p.losses}</td>
-                                                </tr>
-                                            ))}
+                                            .map((p, idx) => {
+                                                const totalRoundsWon = matches.reduce((acc, m) => {
+                                                    if (m.player1_id === p.user_id) return acc + (m.player1_rounds_won || 0);
+                                                    if (m.player2_id === p.user_id) return acc + (m.player2_rounds_won || 0);
+                                                    return acc;
+                                                }, 0);
+
+                                                return (
+                                                    <tr
+                                                        key={p.id}
+                                                        className={`border-b border-gray-700 ${idx % 2 === 0 ? 'bg-gray-800' : 'bg-gray-800/50'}`}
+                                                    >
+                                                        <td className="p-2 font-medium">{p.email}</td>
+                                                        <td className="p-2 font-bold text-yellow-400">{p.points}</td>
+                                                        <td className="p-2 font-bold text-blue-400">{totalRoundsWon}</td>
+                                                        <td className="p-2">{p.matches_played}</td>
+                                                        <td className="p-2 text-green-400">{p.wins}</td>
+                                                        <td className="p-2 text-gray-400">{p.draws}</td>
+                                                        <td className="p-2 text-red-400">{p.losses}</td>
+                                                    </tr>
+                                                );
+                                            })}
                                     </tbody>
                                 </table>
                             </div>

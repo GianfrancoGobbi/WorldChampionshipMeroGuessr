@@ -23,7 +23,7 @@ const MeroGuessr: React.FC<{ session: Session; onOpenChampionships: () => void; 
     const [score, setScore] = useState<number | null>(null);
     const [scoreBreakdown, setScoreBreakdown] = useState<ScoreBreakdown | null>(null);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
-    const [timeLeft, setTimeLeft] = useState(90);
+    const [timeLeft, setTimeLeft] = useState(30);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [pov, setPov] = useState({ heading: 0, unwrappedHeading: 0 });
 
@@ -106,7 +106,7 @@ const MeroGuessr: React.FC<{ session: Session; onOpenChampionships: () => void; 
                     distanceScore = 90 * (1 - (dist - minDistance) / (maxDistance - minDistance));
                 }
                 breakdown.distance = Math.max(0, distanceScore);
-                breakdown.time = (Math.min(timeLeft, 60) / 60) * 10;
+                breakdown.time = (Math.min(timeLeft, 30) / 30) * 10;
                 finalScore = breakdown.distance + breakdown.time;
             }
         } else {
@@ -364,7 +364,7 @@ const MeroGuessr: React.FC<{ session: Session; onOpenChampionships: () => void; 
             }
 
             const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
-            const initialTimeLeft = 90 - elapsedSeconds;
+            const initialTimeLeft = 30 - elapsedSeconds;
 
             if (initialTimeLeft <= 0) {
                 setTimeLeft(0);

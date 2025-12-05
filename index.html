@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MeroGuessr</title>
+
+    <!-- SEO and Social Sharing Meta Tags -->
+    <meta name="description" content="Pon a prueba tus habilidades de geografía. Aparece en una ubicación aleatoria de Street View y adivina dónde estás. ¡Compite por el puntaje más alto!" />
+    
+    <!-- Open Graph / Facebook / WhatsApp -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://meroguessr.app/" />
+    <meta property="og:title" content="MeroGuessr - El Desafío Geográfico Definitivo" />
+    <meta property="og:description" content="Pon a prueba tus habilidades de geografía. Aparece en una ubicación aleatoria de Street View y adivina dónde estás. ¡Compite por el puntaje más alto!" />
+    <meta property="og:image" content="https://storage.googleapis.com/maker-studio-images/template-MeroGuessr/meroguessr_og_image.png" />
+    
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://meroguessr.app/" />
+    <meta property="twitter:title" content="MeroGuessr - El Desafío Geográfico Definitivo" />
+    <meta property="twitter:description" content="Pon a prueba tus habilidades de geografía. Aparece en una ubicación aleatoria de Street View y adivina dónde estás. ¡Compite por el puntaje más alto!" />
+    <meta property="twitter:image" content="https://storage.googleapis.com/maker-studio-images/template-MeroGuessr/meroguessr_og_image.png" />
+
+    <script src="https://cdn.tailwindcss.com"></script>
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.1.0/",
+    "react": "https://esm.sh/react@^19.1.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
+    "@googlemaps/js-api-loader": "https://esm.sh/@googlemaps/js-api-loader@^1.16.10",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2"
+  }
+}
+</script>
+</head>
+  <body class="bg-gray-900 font-sans">
+    <div id="root"></div>
+    <script type="module" src="index.tsx"></script>
+  </body>
+</html>

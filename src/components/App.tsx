@@ -28,29 +28,11 @@ const App: React.FC = () => {
 
             if (session) {
                 setSession(session);
-
-                // Check for pending matches
-                const { data, error: matchError } = await supabase
-                    .from('matches')
-                    .select('id')
-                    .or(`player1_id.eq.${session.user.id},player2_id.eq.${session.user.id}`)
-                    .eq('status', 'pending')
-                    .order('created_at', { ascending: true })
-                    .limit(1);
-
-                if (matchError) {
-                    console.error('Error fetching pending match:', matchError);
-                }
-
-                if (data && data.length > 0) {
-                    setMatchIdToPlay(data[0].id);
-                    setView('game');
-                } else {
-                    setView('championships');
-                }
+                setView('championships');
             } else {
                 setSession(null);
             }
+
             setLoading(false);
         };
 

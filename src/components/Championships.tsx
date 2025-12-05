@@ -354,7 +354,7 @@ const Championships: React.FC<ChampionshipsProps> = ({ session, onBack, onPlayMa
                                     .sort((a, b) => Number(a) - Number(b))
                                     .map(round => {
                                         const isNext = round === nextRound;
-                                        const pendingMatch = matches.find(m => m.round_number === round && m.status !== 'completed');
+                                        const pendingMatch = matches.find(m => m.round_number === round && m.status !== 'completed' && (m.player1_id === session.user.id || m.player2_id === session.user.id));
                                         return (
                                             <div key={round} className="mb-4">
                                                 <div className="flex items-center justify-between">
@@ -362,11 +362,11 @@ const Championships: React.FC<ChampionshipsProps> = ({ session, onBack, onPlayMa
                                                         Round {round}
                                                     </h4>
                                                     <button
-                                                        className={`ml-2 px-3 py-1 rounded ${isNext ? 'bg-green-600 hover:bg-green-500' : 'bg-gray-400 cursor-not-allowed'} text-white`}
+                                                        className={`ml-2 px-3 py-1 rounded ${isNext && pendingMatch ? 'bg-green-600 hover:bg-green-500' : 'bg-gray-400 cursor-not-allowed'} text-white`}
                                                         onClick={() => {
                                                             if (pendingMatch) onPlayMatch(pendingMatch.id);
                                                         }}
-                                                        disabled={!isNext}
+                                                        disabled={!isNext || !pendingMatch}
                                                     >
                                                         Play
                                                     </button>

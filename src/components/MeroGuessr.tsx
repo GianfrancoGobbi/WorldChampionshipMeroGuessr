@@ -149,7 +149,7 @@ const MeroGuessr: React.FC<{ session: Session; onOpenChampionships: () => void; 
             time: parseFloat(breakdown.time.toFixed(2)),
         });
 
-        if (dist !== null && !modeId) {
+        if (!modeId) {
             const submittedGuessLocation = guessLocation ? { lat: guessLocation.lat(), lng: guessLocation.lng() } : null;
 
             // Only save scores for real matches/daily games
@@ -160,9 +160,11 @@ const MeroGuessr: React.FC<{ session: Session; onOpenChampionships: () => void; 
                         user_id: session.user.id,
                         round_number: currentRoundNum,
                         score: finalScore,
-                        distance_km: dist,
-                        guessed_lat: submittedGuessLocation?.lat,
-                        guessed_lng: submittedGuessLocation?.lng
+                        distance: dist,
+                        lat: submittedGuessLocation?.lat,
+                        lng: submittedGuessLocation?.lng
+                    }).then(({ error }) => {
+                        if (error) throw error;
                     });
                     setMatchRoundsPlayed(prev => prev + 1);
 

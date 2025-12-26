@@ -28,6 +28,7 @@ const Championships: React.FC<ChampionshipsProps> = ({ session }) => {
     const [gameModes, setGameModes] = useState<{ id: string; name: string }[]>([]);
     const [selectedGameModeId, setSelectedGameModeId] = useState<string | null>(null);
     const [selectedFixtureRound, setSelectedFixtureRound] = useState<number | null>(null);
+    const [myMatchCounts, setMyMatchCounts] = useState<Record<string, number>>({});
 
     // Initial load
     useEffect(() => {
@@ -109,6 +110,24 @@ const Championships: React.FC<ChampionshipsProps> = ({ session }) => {
                 player2_email: profiles?.find(u => u.id === m.player2_id)?.username || 'Unknown User',
             }));
             setMatches(mappedMatches);
+
+            // Fetch my progress for these matches
+            const matchIds = mData.map(m => m.id);
+            if (matchIds.length > 0) {
+                const { data: guesses } = await supabase
+                    .from('match_guesses')
+                    .select('match_id')
+                    .eq('user_id', session.user.id)
+                    .in('match_id', matchIds);
+
+                if (guesses) {
+                    const counts: Record<string, number> = {};
+                    guesses.forEach(g => {
+                        counts[g.match_id] = (counts[g.match_id] || 0) + 1;
+                    });
+                    setMyMatchCounts(counts);
+                }
+            }
         }
     };
 
@@ -435,16 +454,23 @@ const Championships: React.FC<ChampionshipsProps> = ({ session }) => {
                                                 Round {selectedFixtureRound}
                                             </h4>
                                             {selectedFixtureRound === nextRound && (
-                                                <button
-                                                    className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all transform hover:scale-105 ${matches.find(m => m.round_number === selectedFixtureRound && m.status !== 'completed' && (m.player1_id === session.user.id || m.player2_id === session.user.id)) ? 'bg-green-600 hover:bg-green-500 shadow-lg shadow-green-900/20' : 'bg-gray-700 text-gray-400 cursor-not-allowed opacity-50'}`}
-                                                    onClick={() => {
-                                                        const pendingMatch = matches.find(m => m.round_number === selectedFixtureRound && m.status !== 'completed' && (m.player1_id === session.user.id || m.player2_id === session.user.id));
-                                                        if (pendingMatch) navigate(`/game/${pendingMatch.id}`);
-                                                    }}
-                                                    disabled={selectedFixtureRound !== nextRound || !matches.find(m => m.round_number === selectedFixtureRound && m.status !== 'completed' && (m.player1_id === session.user.id || m.player2_id === session.user.id))}
-                                                >
-                                                    {matches.find(m => m.round_number === selectedFixtureRound && m.status !== 'completed' && (m.player1_id === session.user.id || m.player2_id === session.user.id)) ? 'Play Match' : 'Locked'}
-                                                </button>
+                                                (() => {
+                                                    const pendingMatch = matches.find(m => m.round_number === selectedFixtureRound && m.status !== 'completed' && (m.player1_id === session.user.id || m.player2_id === session.user.id));
+
+                                                    const isMyMatchFinished = pendingMatch ? (myMatchCounts[pendingMatch.id] || 0) >= 6 : false;
+
+                                                    return (
+                                                        <button
+                                                            className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all transform hover:scale-105 ${pendingMatch && !isMyMatchFinished ? 'bg-green-600 hover:bg-green-500 shadow-lg shadow-green-900/20' : 'bg-gray-700 text-gray-400 cursor-not-allowed opacity-50'}`}
+                                                            onClick={() => {
+                                                                if (pendingMatch && !isMyMatchFinished) navigate(`/game/${pendingMatch.id}`);
+                                                            }}
+                                                            disabled={selectedFixtureRound !== nextRound || !pendingMatch || isMyMatchFinished}
+                                                        >
+                                                            {pendingMatch ? (isMyMatchFinished ? 'Waiting for Opponent' : 'Play Match') : 'Locked'}
+                                                        </button>
+                                                    );
+                                                })()
                                             )}
                                         </div>
                                         <div className="space-y-2">

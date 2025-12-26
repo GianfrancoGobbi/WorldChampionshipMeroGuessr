@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
+import { useParams, useNavigate } from 'react-router-dom';
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from '../../supabaseClient';
 import { googleMapsService } from '../services/googleMapsService';
@@ -13,7 +14,9 @@ import Compass from './Compass';
 
 declare const google: any;
 
-const MeroGuessr: React.FC<{ session: Session; onOpenChampionships: () => void; matchId: string | null; onMatchExit: () => void }> = ({ session, onOpenChampionships, matchId, onMatchExit }) => {
+const MeroGuessr: React.FC<{ session: Session; onOpenChampionships: () => void; onMatchExit: () => void }> = ({ session, onOpenChampionships, onMatchExit }) => {
+    const { matchId, modeId } = useParams<{ matchId: string; modeId: string }>();
+    const navigate = useNavigate();
     const [gameState, setGameState] = useState<GameState>('home');
     const [roundsPlayedToday, setRoundsPlayedToday] = useState(0);
     const [loadingRounds, setLoadingRounds] = useState(true);
@@ -26,6 +29,8 @@ const MeroGuessr: React.FC<{ session: Session; onOpenChampionships: () => void; 
     const [timeLeft, setTimeLeft] = useState(30);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [pov, setPov] = useState({ heading: 0, unwrappedHeading: 0 });
+    const [scoreThreshold, setScoreThreshold] = useState<number | null>(null);
+    const [customRegions, setCustomRegions] = useState<{ lat: number; lng: number; radius: number }[]>([]);
 
     // Match specific state
     const [matchRoundsPlayed, setMatchRoundsPlayed] = useState(0);
@@ -43,13 +48,19 @@ const MeroGuessr: React.FC<{ session: Session; onOpenChampionships: () => void; 
     const lastHeadingRef = useRef(0);
 
     useEffect(() => {
-        if (!matchId) {
+        if (!matchId && !modeId) {
             onOpenChampionships();
         }
-    }, [matchId, onOpenChampionships]);
+    }, [matchId, modeId, onOpenChampionships]);
 
     const loadRoundsPlayed = useCallback(async () => {
-        if (!session || !matchId) return;
+        if (!session) return;
+        if (modeId) {
+            setMatchRoundsPlayed(0);
+            setLoadingRounds(false);
+            return;
+        }
+        if (!matchId) return;
         setLoadingRounds(true);
         try {
             const { count, error } = await supabase
@@ -93,22 +104,36 @@ const MeroGuessr: React.FC<{ session: Session; onOpenChampionships: () => void; 
         if (guessLocation) {
             dist = googleMapsService.calculateDistance(realLocation, guessLocation);
 
-            if (dist <= 0.5) { // 500 meters
-                finalScore = 100;
-                breakdown = { distance: 90, time: 10 };
-            } else {
-                const maxDistance = 15000;
-                const minDistance = 1;
-                let distanceScore = 0;
-                if (dist <= minDistance) {
-                    distanceScore = 90;
-                } else if (dist < maxDistance) {
-                    distanceScore = 90 * (1 - (dist - minDistance) / (maxDistance - minDistance));
+            if (scoreThreshold) {
+                // Custom mode relative scoring
+                // Points are relative from 0 to Threshold.
+                if (dist < scoreThreshold) {
+                    breakdown.distance = 100 * (1 - dist / scoreThreshold);
+                } else {
+                    breakdown.distance = 0;
                 }
-                breakdown.distance = Math.max(0, distanceScore);
-                breakdown.time = (Math.min(timeLeft, 30) / 30) * 10;
-                finalScore = breakdown.distance + breakdown.time;
+            } else {
+                // Default global scoring
+                if (dist <= 0.5) { // 500 meters
+                    breakdown.distance = 100;
+                } else if (dist <= 2) { // 2 km
+                    breakdown.distance = 90;
+                } else if (dist <= 10) { // 10 km
+                    breakdown.distance = 80;
+                } else if (dist <= 50) { // 50 km
+                    breakdown.distance = 60;
+                } else if (dist <= 250) { // 250 km
+                    breakdown.distance = 40;
+                } else if (dist <= 1000) { // 1000 km
+                    breakdown.distance = 20;
+                } else if (dist <= 5000) { // 5000 km
+                    breakdown.distance = 5;
+                } else {
+                    breakdown.distance = 0;
+                }
             }
+            breakdown.time = 0;
+            finalScore = breakdown.distance;
         } else {
             // Time ran out or no guess made
             finalScore = 0;
@@ -124,37 +149,38 @@ const MeroGuessr: React.FC<{ session: Session; onOpenChampionships: () => void; 
             time: parseFloat(breakdown.time.toFixed(2)),
         });
 
-        try {
+        if (dist !== null && !modeId) {
             const submittedGuessLocation = guessLocation ? { lat: guessLocation.lat(), lng: guessLocation.lng() } : null;
 
-            if (matchId) {
-                // Save match guess
-                await supabase.from('match_guesses').insert({
-                    match_id: matchId,
-                    round_number: currentRoundNum,
-                    user_id: session.user.id,
-                    lat: submittedGuessLocation?.lat,
-                    lng: submittedGuessLocation?.lng,
-                    score: finalScore,
-                    distance: dist
-                });
-                setMatchRoundsPlayed(prev => prev + 1);
+            // Only save scores for real matches/daily games
+            try {
+                if (matchId) {
+                    await supabase.from('match_guesses').insert({
+                        match_id: matchId,
+                        user_id: session.user.id,
+                        round_number: currentRoundNum,
+                        score: finalScore,
+                        distance_km: dist,
+                        guessed_lat: submittedGuessLocation?.lat,
+                        guessed_lng: submittedGuessLocation?.lng
+                    });
+                    setMatchRoundsPlayed(prev => prev + 1);
 
-                // Check if match finished for this user
-                if (currentRoundNum === 6) {
-                    // Trigger check completion
-                    await supabase.rpc('trigger_match_completion', { p_match_id: matchId });
+                    // Check if match finished for this user
+                    if (currentRoundNum === 6) {
+                        // Trigger check completion
+                        await supabase.rpc('trigger_match_completion', { p_match_id: matchId });
+                    }
+                } else {
+                    await saveScore(session.user, finalScore, dist ?? 0, submittedGuessLocation, realLocation);
+                    setRoundsPlayedToday(prev => prev + 1);
                 }
-
-            } else {
-                await saveScore(session.user, finalScore, dist ?? 0, submittedGuessLocation, realLocation);
-                setRoundsPlayedToday(prev => prev + 1);
+            } catch (e) {
+                // Handle error saving score
+                console.error("Error saving score", e);
             }
-
-        } catch (e) {
-            // Handle error saving score
-            console.error("Error saving score", e);
         }
+
 
         if (realMarker.current) realMarker.current.setMap(null);
 
@@ -187,7 +213,7 @@ const MeroGuessr: React.FC<{ session: Session; onOpenChampionships: () => void; 
 
         setGameState('result');
         setIsSubmitting(false);
-    }, [realLocation, guessLocation, session.user, isSubmitting, timeLeft, roundsPlayedToday, matchId, matchRoundsPlayed]);
+    }, [realLocation, guessLocation, session.user, isSubmitting, timeLeft, roundsPlayedToday, matchId, matchRoundsPlayed, modeId, scoreThreshold]);
 
 
     useEffect(() => {
@@ -195,18 +221,97 @@ const MeroGuessr: React.FC<{ session: Session; onOpenChampionships: () => void; 
     });
 
     const loadGameLocation = useCallback(async () => {
-        if (!matchId) return;
+        if (!matchId && !modeId) return;
 
         try {
-            if (matchRoundsPlayed >= 6) {
+            if (matchId && matchRoundsPlayed >= 6) {
                 setGameState('home');
                 return;
             }
 
             const currentRoundNum = matchRoundsPlayed + 1;
 
-            // Generate a new verified location first, as it might be needed.
-            const newLocation = await googleMapsService.getRandomLocation();
+            let targetGameModeId = modeId;
+
+            if (!targetGameModeId && matchId) {
+                // Check if match has a custom game mode
+                const { data: matchData } = await supabase
+                    .from('matches')
+                    .select('championship_id, championships(game_mode_id)')
+                    .eq('id', matchId)
+                    .single();
+
+                targetGameModeId = (matchData?.championships as any)?.game_mode_id;
+            }
+
+            let newLocation;
+
+            let regions: any[] = [];
+            if (targetGameModeId) {
+                const { data: dbRegions } = await supabase
+                    .from('game_mode_locations')
+                    .select('lat, lng, radius')
+                    .eq('game_mode_id', targetGameModeId);
+
+                regions = dbRegions || [];
+
+                if (regions.length > 0) {
+                    newLocation = await googleMapsService.getRandomLocationInRegions(regions);
+                    // Calculate threshold for relative scoring
+                    const maxDist = googleMapsService.calculateMaxDistanceInRegions(regions);
+                    setScoreThreshold(maxDist / 2);
+                    setCustomRegions(regions);
+                } else {
+                    newLocation = await googleMapsService.getRandomLocation();
+                    setScoreThreshold(null);
+                    setCustomRegions([]);
+                }
+            } else {
+                newLocation = await googleMapsService.getRandomLocation();
+                setScoreThreshold(null);
+                setCustomRegions([]);
+            }
+
+            if (modeId) {
+                // Test mode setup
+                setRealLocation(newLocation);
+                setGuessLocation(null);
+                setDistance(null);
+                setScore(null);
+                setScoreBreakdown(null);
+
+                if (guessMarker.current) guessMarker.current.setMap(null);
+                if (realMarker.current) realMarker.current.setMap(null);
+                if (line.current) line.current.setMap(null);
+
+                if (panoramaInstance.current) {
+                    panoramaInstance.current.setPosition(newLocation);
+                    panoramaInstance.current.setVisible(true);
+                }
+
+                if (mapInstance.current) {
+                    if (regions && regions.length > 0) {
+                        const bounds = new google.maps.LatLngBounds();
+                        regions.forEach((region: any) => {
+                            const r = region.radius / 1000;
+                            const dLat = r / 111.32;
+                            const dLng = r / (111.32 * Math.cos(region.lat * Math.PI / 180));
+                            bounds.extend({ lat: region.lat + dLat, lng: region.lng + dLng });
+                            bounds.extend({ lat: region.lat - dLat, lng: region.lng - dLng });
+                        });
+                        mapInstance.current.fitBounds(bounds, 50);
+                    } else {
+                        mapInstance.current.setCenter({ lat: 20, lng: 0 });
+                        mapInstance.current.setZoom(2);
+                    }
+                }
+
+                setGameState('playing');
+                setTimeLeft(30);
+                setErrorMsg(null);
+                setLoadingRounds(false);
+                return;
+            }
 
             // Call the RPC function to either get the existing round or create a new one.
             const { data: roundData, error: rpcError } = await supabase.rpc('get_or_create_match_round', {
@@ -236,8 +341,25 @@ const MeroGuessr: React.FC<{ session: Session; onOpenChampionships: () => void; 
             }
 
             if (mapInstance.current) {
-                mapInstance.current.setCenter({ lat: 20, lng: 0 });
-                mapInstance.current.setZoom(2);
+                const regionsToUse = (targetGameModeId && typeof regions !== 'undefined') ? regions : customRegions;
+
+                if (targetGameModeId && regionsToUse && regionsToUse.length > 0) {
+                    const bounds = new google.maps.LatLngBounds();
+                    regionsToUse.forEach((region: any) => {
+                        const center = new google.maps.LatLng(region.lat, region.lng);
+                        // Extend bounds by adding points at the circle's borders
+                        const r = region.radius / 1000; // to km
+                        const dLat = r / 111.32;
+                        const dLng = r / (111.32 * Math.cos(region.lat * Math.PI / 180));
+
+                        bounds.extend({ lat: region.lat + dLat, lng: region.lng + dLng });
+                        bounds.extend({ lat: region.lat - dLat, lng: region.lng - dLng });
+                    });
+                    mapInstance.current.fitBounds(bounds, 50);
+                } else {
+                    mapInstance.current.setCenter({ lat: 20, lng: 0 });
+                    mapInstance.current.setZoom(2);
+                }
             }
 
             setGameState('ready');
@@ -246,7 +368,7 @@ const MeroGuessr: React.FC<{ session: Session; onOpenChampionships: () => void; 
             setErrorMsg("Could not load the location for the game. Please try again.");
             setGameState('error');
         }
-    }, [matchId, matchRoundsPlayed]);
+    }, [matchId, matchRoundsPlayed, modeId, customRegions]);
 
     const initializeMaps = useCallback(async () => {
         if (isMapInitialized.current || !mapRef.current || !streetViewRef.current) return;
@@ -554,12 +676,8 @@ const MeroGuessr: React.FC<{ session: Session; onOpenChampionships: () => void; 
                             <div className="text-left w-full my-4 space-y-2 text-gray-700">
                                 <h3 className="font-bold text-center text-lg mb-2">Desglose de Puntos</h3>
                                 <div className="flex justify-between items-center border-b pb-1">
-                                    <span>Bonificación de Tiempo</span>
-                                    <span className="font-bold">{scoreBreakdown.time.toFixed(2)} / 10.00 pts</span>
-                                </div>
-                                <div className="flex justify-between items-center border-b pb-1">
                                     <span>Puntos por Distancia</span>
-                                    <span className="font-bold">{scoreBreakdown.distance.toFixed(2)} / 90.00 pts</span>
+                                    <span className="font-bold">{scoreBreakdown.distance.toFixed(2)} / 100.00 pts</span>
                                 </div>
                             </div>
                         )}

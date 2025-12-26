@@ -1,24 +1,24 @@
 import React, { useEffect, useState } from "react";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import type { Session } from "@supabase/supabase-js";
 import { supabase, isSupabaseConfigured } from '../../supabaseClient';
 import AuthForm from './AuthForm';
 import MeroGuessr from './MeroGuessr';
 import Championships from './Championships';
+import CustomModes from './CustomModes';
 import HamburgerMenu from './HamburgerMenu';
 import RankingsModal from './RankingsModal';
 
-const App: React.FC = () => {
+const AppContent: React.FC = () => {
     const [session, setSession] = useState<Session | null>(null);
     const [loading, setLoading] = useState(true);
-
-    const [view, setView] = useState<'game' | 'championships'>('championships');
-    const [matchIdToPlay, setMatchIdToPlay] = useState<string | null>(null);
-
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isRankingsOpen, setIsRankingsOpen] = useState(false);
+    const navigate = useNavigate();
+    const location = useLocation();
 
     useEffect(() => {
-        const fetchSessionAndPendingMatch = async () => {
+        const fetchSession = async () => {
             const { data: { session }, error } = await supabase.auth.getSession();
             if (error) {
                 console.error('Error getting session:', error);
@@ -28,7 +28,6 @@ const App: React.FC = () => {
 
             if (session) {
                 setSession(session);
-                setView('championships');
             } else {
                 setSession(null);
             }
@@ -36,14 +35,10 @@ const App: React.FC = () => {
             setLoading(false);
         };
 
-        fetchSessionAndPendingMatch();
+        fetchSession();
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
             setSession(newSession);
-            if (!newSession) {
-                setView('championships');
-                setMatchIdToPlay(null);
-            }
         });
 
         return () => subscription.unsubscribe();
@@ -52,18 +47,8 @@ const App: React.FC = () => {
     const handleSignOut = async () => {
         await supabase.auth.signOut();
         setIsMenuOpen(false);
+        navigate('/');
     };
-
-    if (!isSupabaseConfigured) {
-        return (
-            <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
-                <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-6 rounded-lg max-w-md shadow-lg">
-                    <p className="font-bold text-lg mb-2">Supabase Configuration Missing</p>
-                    <p>Please configure your Supabase project credentials in the <code className="bg-yellow-200 text-yellow-800 px-1 rounded">supabaseClient.ts</code> file to enable authentication and data features.</p>
-                </div>
-            </div>
-        );
-    }
 
     if (loading) {
         return (
@@ -81,7 +66,8 @@ const App: React.FC = () => {
                 isOpen={isMenuOpen}
                 onClose={() => setIsMenuOpen(false)}
                 onOpenRankings={() => { setIsMenuOpen(false); setIsRankingsOpen(true); }}
-                onOpenChampionships={() => { setIsMenuOpen(false); setView('championships'); }}
+                onOpenChampionships={() => { setIsMenuOpen(false); navigate('/championships'); }}
+                onOpenCustomModes={() => { setIsMenuOpen(false); navigate('/custom-modes'); }}
                 onSignOut={handleSignOut}
                 session={session}
             />
@@ -96,27 +82,36 @@ const App: React.FC = () => {
                 </svg>
             </button>
 
-            {view === 'championships' ? (
-                <Championships
-                    session={session}
-                    onBack={() => setView('game')}
-                    onPlayMatch={(matchId) => {
-                        setMatchIdToPlay(matchId);
-                        setView('game');
-                    }}
-                />
-            ) : (
-                <MeroGuessr
-                    session={session}
-                    onOpenChampionships={() => setView('championships')}
-                    matchId={matchIdToPlay}
-                    onMatchExit={() => {
-                        setMatchIdToPlay(null);
-                        setView('championships');
-                    }}
-                />
-            )}
+            <Routes>
+                <Route path="/championships" element={<Championships session={session} />} />
+                <Route path="/championships/:id" element={<Championships session={session} />} />
+                <Route path="/custom-modes" element={<CustomModes session={session} />} />
+                <Route path="/custom-modes/:id" element={<CustomModes session={session} />} />
+                <Route path="/test/:modeId" element={<MeroGuessr session={session} onOpenChampionships={() => navigate('/championships')} onMatchExit={() => navigate('/championships')} />} />
+                <Route path="/game" element={<MeroGuessr session={session} onOpenChampionships={() => navigate('/championships')} onMatchExit={() => navigate('/championships')} />} />
+                <Route path="/game/:matchId" element={<MeroGuessr session={session} onOpenChampionships={() => navigate('/championships')} onMatchExit={() => navigate('/championships')} />} />
+                <Route path="*" element={<Navigate to="/championships" replace />} />
+            </Routes>
         </div>
+    );
+};
+
+const App: React.FC = () => {
+    if (!isSupabaseConfigured) {
+        return (
+            <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
+                <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-6 rounded-lg max-w-md shadow-lg">
+                    <p className="font-bold text-lg mb-2">Supabase Configuration Missing</p>
+                    <p>Please configure your Supabase project credentials in the <code className="bg-yellow-200 text-yellow-800 px-1 rounded">supabaseClient.ts</code> file to enable authentication and data features.</p>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <BrowserRouter>
+            <AppContent />
+        </BrowserRouter>
     );
 };
 

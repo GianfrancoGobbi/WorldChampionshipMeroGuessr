@@ -12,28 +12,65 @@ class GoogleMapsService {
     private isLoaded = false;
 
     async load() {
- 	     if (this.isLoaded) return true;
- 	     if (!API_KEY) return false;
- 	     try {
- 	         // FIX: Use importLibrary instead of load() to fix TS error and use modern API
- 	         const loader = new Loader({ apiKey: API_KEY, version: "weekly" });
- 	         
- 	         // Fix: Cast loader to any to access importLibrary which might be missing in current type definitions
- 	         await Promise.all([
- 	             (loader as any).importLibrary("maps"),
- 	             (loader as any).importLibrary("geometry"),
- 	             (loader as any).importLibrary("marker"),
- 	             (loader as any).importLibrary("streetView")
- 	         ]);
+        if (this.isLoaded) return true;
+        if (!API_KEY) return false;
+        try {
+            const loader = new Loader({
+                apiKey: API_KEY,
+                version: "weekly",
+                libraries: ["geometry", "places"]
+            });
 
- 	         this.svService = new google.maps.StreetViewService();
- 	         this.isLoaded = true;
- 	         return true;
- 	     } catch (error) {
- 	         console.error("Failed to load Google Maps:", error);
- 	         return false;
- 	     }
- 	 }
+            await Promise.all([
+                (loader as any).importLibrary("maps"),
+                (loader as any).importLibrary("marker"),
+                (loader as any).importLibrary("streetView"),
+                (loader as any).importLibrary("visualization")
+            ]);
+
+            this.svService = new google.maps.StreetViewService();
+            this.isLoaded = true;
+            return true;
+        } catch (error) {
+            console.error("Failed to load Google Maps:", error);
+            return false;
+        }
+    }
+
+    async getRandomLocationInRegions(regions: { lat: number; lng: number; radius: number }[]): Promise<Location> {
+        if (!this.svService) {
+            throw new Error("Street View Service not initialized.");
+        }
+        for (let i = 0; i < MAX_RETRIES * 2; i++) {
+            const region = regions[Math.floor(Math.random() * regions.length)];
+
+            const r = region.radius / 111320; // 111.32km per degree
+            const y0 = region.lat;
+            const x0 = region.lng;
+            const u = Math.random();
+            const v = Math.random();
+            const w = r * Math.sqrt(u);
+            const t = 2 * Math.PI * v;
+            const x = w * Math.cos(t);
+            const y = w * Math.sin(t);
+
+            const xp = x / Math.cos(y0 * Math.PI / 180);
+
+            const location = { lat: y + y0, lng: xp + x0 };
+
+            const { data, status } = await new Promise<{ data: any; status: string }>((resolve) => {
+                this.svService.getPanorama({ location, radius: region.radius, source: 'outdoor' }, (data: any, status: string) => {
+                    resolve({ data, status });
+                });
+            });
+
+            if (status === "OK" && data.location?.latLng) {
+                const latLng = data.location.latLng;
+                return { lat: latLng.lat(), lng: latLng.lng() };
+            }
+        }
+        throw new Error("Could not find a valid Street View location in the specified regions.");
+    }
 
     async getRandomLocation(): Promise<Location> {
         if (!this.svService) {
@@ -50,13 +87,35 @@ class GoogleMapsService {
                     resolve({ data, status });
                 });
             });
-            
+
             if (status === "OK" && data.location?.latLng && data.copyright) {
                 const latLng = data.location.latLng;
                 return { lat: latLng.lat(), lng: latLng.lng() };
             }
         }
         throw new Error("Could not find a valid Street View location after multiple attempts.");
+    }
+
+    calculateMaxDistanceInRegions(regions: { lat: number; lng: number; radius: number }[]): number {
+        if (regions.length === 0) return 0;
+        let maxDist = 0;
+
+        // Compare all pairs of regions
+        for (let i = 0; i < regions.length; i++) {
+            for (let j = i; j < regions.length; j++) {
+                const p1 = { lat: regions[i].lat, lng: regions[i].lng };
+                const p2 = { lat: regions[j].lat, lng: regions[j].lng };
+
+                const centerDist = i === j ? 0 : this.calculateDistance(p1 as any, p2 as any);
+                // Max distance between two points in these two circles is dist(centers) + r1 + r2
+                const totalDist = centerDist + (regions[i].radius / 1000) + (regions[j].radius / 1000);
+
+                if (totalDist > maxDist) {
+                    maxDist = totalDist;
+                }
+            }
+        }
+        return maxDist;
     }
 
     calculateDistance(pos1: GoogleLatLng, pos2: GoogleLatLng): number {

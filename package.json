@@ -9,14 +9,18 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@googlemaps/js-api-loader": "^1.16.10",
+    "@supabase/supabase-js": "2",
+    "lucide-react": "^0.562.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "@googlemaps/js-api-loader": "^1.16.10",
-    "@supabase/supabase-js": "2"
+    "react-router-dom": "^7.11.0",
+    "recharts": "^3.6.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.0.0",
+    "@webgpu/types": "^0.1.67",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
   }

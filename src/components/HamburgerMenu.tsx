@@ -6,11 +6,12 @@ interface HamburgerMenuProps {
     onClose: () => void;
     onOpenRankings: () => void;
     onOpenChampionships: () => void;
+    onOpenCustomModes: () => void;
     onSignOut: () => void;
     session: Session;
 }
 
-const HamburgerMenu: React.FC<HamburgerMenuProps> = ({ isOpen, onClose, onOpenRankings, onOpenChampionships, onSignOut, session }) => {
+const HamburgerMenu: React.FC<HamburgerMenuProps> = ({ isOpen, onClose, onOpenRankings, onOpenChampionships, onOpenCustomModes, onSignOut, session }) => {
     return (
         <>
             <div className={`fixed inset-0 bg-black z-[51] transition-opacity duration-300 ${isOpen ? 'bg-opacity-50' : 'bg-opacity-0 pointer-events-none'}`} onClick={onClose}></div>
@@ -26,6 +27,9 @@ const HamburgerMenu: React.FC<HamburgerMenuProps> = ({ isOpen, onClose, onOpenRa
                         </button>
                         <button onClick={onOpenChampionships} className="text-left w-full text-lg hover:bg-gray-700 p-3 rounded-lg transition-colors">
                             Championships
+                        </button>
+                        <button onClick={onOpenCustomModes} className="text-left w-full text-lg hover:bg-gray-700 p-3 rounded-lg transition-colors">
+                            Custom Modes Builder
                         </button>
                     </nav>
                 </div>

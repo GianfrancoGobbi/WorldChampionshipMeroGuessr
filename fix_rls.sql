@@ -21,5 +21,19 @@ CREATE POLICY "Enable read access for all users" ON match_guesses
     TO authenticated
     USING (true);
 
--- Optional: If you strictly want this only for COMPLETED matches, you would need a more complex query involving a join,
--- but for now, allowing read access to all rounds/guesses is the simplest fix for a transparency feature.
+-- CRITICAL: Allow INSERTING guesses (fixes the "score not saving" issue)
+CREATE POLICY "Enable insert for authenticated users" ON match_guesses
+    FOR INSERT
+    TO authenticated
+    WITH CHECK (auth.uid() = user_id);
+
+-- Daily/Training Scores
+CREATE POLICY "Enable insert for daily scores" ON scores
+    FOR INSERT
+    TO authenticated
+    WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Enable read daily scores" ON scores
+    FOR SELECT
+    TO authenticated
+    USING (true);

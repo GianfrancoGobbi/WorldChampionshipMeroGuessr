@@ -59,7 +59,7 @@ class GoogleMapsService {
             const location = { lat: y + y0, lng: xp + x0 };
 
             const { data, status } = await new Promise<{ data: any; status: string }>((resolve) => {
-                this.svService.getPanorama({ location, radius: region.radius, source: 'outdoor' }, (data: any, status: string) => {
+                this.svService.getPanorama({ location, radius: 500, source: 'outdoor' }, (data: any, status: string) => {
                     resolve({ data, status });
                 });
             });

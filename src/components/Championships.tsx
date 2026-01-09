@@ -62,6 +62,12 @@ const Championships: React.FC<ChampionshipsProps> = ({ session }) => {
                 }
             };
             fetchAndSetChampionship();
+
+            const intervalId = setInterval(() => {
+                fetchChampionshipDetails(id);
+            }, 5000);
+
+            return () => clearInterval(intervalId);
         } else if (view === 'detail') {
             setView('list');
             setSelectedChampionship(null);

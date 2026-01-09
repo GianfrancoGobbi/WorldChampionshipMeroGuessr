@@ -35,6 +35,7 @@ const MeroGuessr: React.FC<{ session: Session; onOpenChampionships: () => void; 
     // Match specific state
     const [matchRoundsPlayed, setMatchRoundsPlayed] = useState(0);
     const [matchLocations, setMatchLocations] = useState<Location[]>([]);
+    const [matchDisplayInfo, setMatchDisplayInfo] = useState<{ opponentName: string; myScore: number; opponentScore: number } | null>(null);
 
     const mapRef = useRef<HTMLDivElement>(null);
     const streetViewRef = useRef<HTMLDivElement>(null);
@@ -83,6 +84,43 @@ const MeroGuessr: React.FC<{ session: Session; onOpenChampionships: () => void; 
     useEffect(() => {
         loadRoundsPlayed();
     }, [loadRoundsPlayed]);
+
+    useEffect(() => {
+        if (!matchId || !session?.user?.id) return;
+
+        const loadMatchInfo = async () => {
+            try {
+                const { data: match } = await supabase
+                    .from('matches')
+                    .select('*')
+                    .eq('id', matchId)
+                    .single();
+
+                if (match) {
+                    const isPlayer1 = match.player1_id === session.user.id;
+                    const opponentId = isPlayer1 ? match.player2_id : match.player1_id;
+
+                    const { data: profile } = await supabase
+                        .from('profiles')
+                        .select('username')
+                        .eq('id', opponentId)
+                        .single();
+
+                    const opponentName = profile?.username || 'Oponente';
+
+                    setMatchDisplayInfo({
+                        opponentName,
+                        myScore: isPlayer1 ? (match.player1_rounds_won || 0) : (match.player2_rounds_won || 0),
+                        opponentScore: isPlayer1 ? (match.player2_rounds_won || 0) : (match.player1_rounds_won || 0)
+                    });
+                }
+            } catch (error) {
+                console.error("Error loading match info:", error);
+            }
+        };
+
+        loadMatchInfo();
+    }, [matchId, session.user.id, matchRoundsPlayed]);
 
 
 
@@ -540,6 +578,15 @@ const MeroGuessr: React.FC<{ session: Session; onOpenChampionships: () => void; 
         return () => { google.maps.event.removeListener(listener); };
     }, [gameState]);
 
+    useEffect(() => {
+        if (gameState === 'result' && matchId && matchRoundsPlayed >= 6) {
+            const timer = setTimeout(() => {
+                onMatchExit();
+            }, 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [gameState, matchId, matchRoundsPlayed, onMatchExit]);
+
     const handleRestart = () => {
         if (errorMsg?.toLowerCase().includes("api key")) {
             window.location.reload();
@@ -654,6 +701,23 @@ const MeroGuessr: React.FC<{ session: Session; onOpenChampionships: () => void; 
             {gameState === 'playing' && (
                 <div className="fixed top-4 left-1/2 -translate-x-1/2 z-30 bg-black bg-opacity-50 text-white text-3xl font-mono p-2 px-4 rounded-lg shadow-lg">
                     {formatTime(timeLeft)}
+                </div>
+            )}
+
+            {matchDisplayInfo && gameState !== 'home' && (
+                <div className="fixed top-4 left-4 z-30 bg-black/80 text-white p-4 rounded-xl backdrop-blur-md border border-white/10 shadow-2xl animate-fadeIn">
+                    <div className="text-xs uppercase text-gray-400 font-bold mb-2 tracking-wider">Campeonato</div>
+                    <div className="flex items-center gap-4">
+                        <div className="flex flex-col items-center">
+                            <span className="text-sm font-bold text-blue-400 mb-1">Tú</span>
+                            <span className="text-2xl font-mono font-bold bg-gray-800 px-3 py-1 rounded-lg border border-gray-600">{matchDisplayInfo.myScore}</span>
+                        </div>
+                        <div className="text-gray-500 font-bold text-xl">VS</div>
+                        <div className="flex flex-col items-center">
+                            <span className="text-sm font-bold text-red-400 mb-1 max-w-[100px] truncate" title={matchDisplayInfo.opponentName}>{matchDisplayInfo.opponentName}</span>
+                            <span className="text-2xl font-mono font-bold bg-gray-800 px-3 py-1 rounded-lg border border-gray-600">{matchDisplayInfo.opponentScore}</span>
+                        </div>
+                    </div>
                 </div>
             )}
 
